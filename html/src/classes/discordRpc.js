@@ -1,10 +1,12 @@
 import configRepository from '../repository/config.js';
 import { baseClass, $app, API, $t, $utils } from './baseClass.js';
 
+const timeStamp = this.lastLocation.date;
 export default class extends baseClass {
     constructor(_app, _API, _t) {
         super(_app, _API, _t);
     }
+    
 
     _data = {
         isDiscordActive: false,
@@ -18,10 +20,10 @@ export default class extends baseClass {
     _methods = {
         updateDiscord() {
             var currentLocation = this.lastLocation.location;
-            var timeStamp = this.lastLocation.date;
+            Discord.SetTimestamps(timeStamp, 0);
             if (this.lastLocation.location === 'traveling') {
                 currentLocation = this.lastLocationDestination;
-                timeStamp = this.lastLocationDestinationTime;
+                //timeStamp = this.lastLocationDestinationTime;
             }
             if (
                 !this.discordActive ||
@@ -34,7 +36,6 @@ export default class extends baseClass {
             this.setDiscordActive(true);
             var L = this.lastLocation$;
             if (currentLocation !== this.lastLocation$.tag) {
-                Discord.SetTimestamps(timeStamp, 0);
                 L = $app.parseLocation(currentLocation);
                 L.worldName = '';
                 L.thumbnailImageUrl = '';
@@ -65,33 +66,33 @@ export default class extends baseClass {
                     var groupAccessType = '';
                     if (L.groupAccessType) {
                         if (L.groupAccessType === 'public') {
-                            groupAccessType = 'Public';
+                            groupAccessType = 'パブリック';
                         } else if (L.groupAccessType === 'plus') {
-                            groupAccessType = 'Plus';
+                            groupAccessType = '+';
                         }
                     }
                     switch (L.accessType) {
                         case 'public':
                             L.joinUrl = this.getLaunchURL(L);
-                            L.accessName = `Public #${L.instanceName} (${platform})`;
+                            L.accessName = `パブリック`;
                             break;
                         case 'invite+':
-                            L.accessName = `Invite+ #${L.instanceName} (${platform})`;
+                            L.accessName = `インバイト+`;
                             break;
                         case 'invite':
-                            L.accessName = `Invite #${L.instanceName} (${platform})`;
+                            L.accessName = `インバイト`;
                             break;
                         case 'friends':
-                            L.accessName = `Friends #${L.instanceName} (${platform})`;
+                            L.accessName = `フレンド`;
                             break;
                         case 'friends+':
-                            L.accessName = `Friends+ #${L.instanceName} (${platform})`;
+                            L.accessName = `フレンド+`;
                             break;
                         case 'group':
-                            L.accessName = `Group #${L.instanceName} (${platform})`;
+                            L.accessName = `グループ`;
                             this.getGroupName(L.groupId).then((groupName) => {
                                 if (groupName) {
-                                    L.accessName = `Group${groupAccessType}(${groupName}) #${L.instanceName} (${platform})`;
+                                    L.accessName = `グループ${groupAccessType}(${groupName})`;
                                 }
                             });
                             break;
@@ -100,6 +101,7 @@ export default class extends baseClass {
                 this.lastLocation$ = L;
             }
             var hidePrivate = false;
+            var hideFriends = false;
             if (
                 this.discordHideInvite &&
                 (L.accessType === 'invite' ||
@@ -107,6 +109,13 @@ export default class extends baseClass {
                     L.groupAccessType === 'members')
             ) {
                 hidePrivate = true;
+            }
+            else if (
+                this.discordHideInvite &&
+                (L.accessType === 'friends')
+            )
+            {
+                hideFriends = true;
             }
             switch (API.currentUser.status) {
                 case 'active':
@@ -154,7 +163,15 @@ export default class extends baseClass {
                 partyMaxSize = 0;
                 buttonText = '';
                 buttonUrl = '';
-            } else if (this.isRpcWorld(L.tag)) {
+            }
+            else if (hideFriends) {
+                partyId = '';
+                partySize = 0;
+                partyMaxSize = 0;
+                buttonText = '';
+                buttonUrl = '';
+            }
+            else if (this.isRpcWorld(L.tag)) {
                 // custom world rpc
                 if (
                     L.worldId === 'wrld_f20326da-f1ac-45fc-a062-609723b097b1' ||
@@ -193,20 +210,13 @@ export default class extends baseClass {
                     L.worldName = this.nowPlaying.name;
                 }
                 if (this.nowPlaying.playing) {
-                    Discord.SetTimestamps(
-                        Date.now(),
-                        (this.nowPlaying.startTime -
-                            this.nowPlaying.offset +
-                            this.nowPlaying.length) *
-                            1000
-                    );
                 }
             } else if (!this.discordHideImage && L.thumbnailImageUrl) {
                 bigIcon = L.thumbnailImageUrl;
             }
             Discord.SetAssets(
                 bigIcon, // big icon
-                'Powered by VRCX', // big icon hover text
+                'ぶいあーるちゃっと', // big icon hover text
                 L.statusImage, // small icon
                 L.statusName, // small icon hover text
                 partyId, // party id
@@ -222,9 +232,12 @@ export default class extends baseClass {
                 L.worldName += '\uFFA0'.repeat(2 - L.worldName.length);
             }
             if (hidePrivate) {
-                Discord.SetText('Private', '');
-                Discord.SetTimestamps(0, 0);
-            } else if (this.discordInstance) {
+                Discord.SetText('プライベート', '');
+            }
+            //else if (hideFriends) {
+            //    Discord.SetText('プライベート', 'フレンド');
+            //}
+            else if (this.discordInstance) {
                 Discord.SetText(L.worldName, L.accessName);
             } else {
                 Discord.SetText(L.worldName, '');
