@@ -1,7 +1,7 @@
 import configRepository from '../repository/config.js';
 import { baseClass, $app, API, $t, $utils } from './baseClass.js';
 
-const timeStamp = this.lastLocation.date;
+let timeStampInitialized = false;
 export default class extends baseClass {
     constructor(_app, _API, _t) {
         super(_app, _API, _t);
@@ -19,8 +19,21 @@ export default class extends baseClass {
 
     _methods = {
         updateDiscord() {
+            var timeStamp;
             var currentLocation = this.lastLocation.location;
-            Discord.SetTimestamps(timeStamp, 0);
+            
+            // if (!timeStampInitialized) {
+            //     timeStamp = this.lastLocation.date;
+            //     timeStampInitialized = true;
+            //    
+            //     console.log("timeStampInitialized");
+            //     console.log(timeStamp);
+            // }
+            
+            console.dir(API.currentUser.$online_for)
+            Discord.SetTimestamps(API.currentUser.$online_for, 0);
+            console.log("timeStampInitialized");
+            console.log(timeStamp);
             if (this.lastLocation.location === 'traveling') {
                 currentLocation = this.lastLocationDestination;
                 //timeStamp = this.lastLocationDestinationTime;
@@ -164,13 +177,13 @@ export default class extends baseClass {
                 buttonText = '';
                 buttonUrl = '';
             }
-            else if (hideFriends) {
-                partyId = '';
-                partySize = 0;
-                partyMaxSize = 0;
-                buttonText = '';
-                buttonUrl = '';
-            }
+            //else if (hideFriends) {
+            //    partyId = '';
+            //    partySize = 0;
+            //    partyMaxSize = 0;
+            //    buttonText = '';
+            //    buttonUrl = '';
+            //}
             else if (this.isRpcWorld(L.tag)) {
                 // custom world rpc
                 if (
