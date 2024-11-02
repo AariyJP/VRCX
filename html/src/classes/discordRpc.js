@@ -1,7 +1,5 @@
 import configRepository from '../repository/config.js';
 import { baseClass, $app, API, $t, $utils } from './baseClass.js';
-
-let timeStampInitialized = false;
 export default class extends baseClass {
     constructor(_app, _API, _t) {
         super(_app, _API, _t);
@@ -21,19 +19,7 @@ export default class extends baseClass {
         updateDiscord() {
             var timeStamp;
             var currentLocation = this.lastLocation.location;
-            
-            // if (!timeStampInitialized) {
-            //     timeStamp = this.lastLocation.date;
-            //     timeStampInitialized = true;
-            //    
-            //     console.log("timeStampInitialized");
-            //     console.log(timeStamp);
-            // }
-            
-            console.dir(API.currentUser.$online_for)
             Discord.SetTimestamps(API.currentUser.$online_for, 0);
-            console.log("timeStampInitialized");
-            console.log(timeStamp);
             if (this.lastLocation.location === 'traveling') {
                 currentLocation = this.lastLocationDestination;
                 //timeStamp = this.lastLocationDestinationTime;
@@ -81,7 +67,7 @@ export default class extends baseClass {
                         if (L.groupAccessType === 'public') {
                             groupAccessType = 'パブリック';
                         } else if (L.groupAccessType === 'plus') {
-                            groupAccessType = '+';
+                            groupAccessType = '＋';
                         }
                     }
                     switch (L.accessType) {
@@ -90,7 +76,7 @@ export default class extends baseClass {
                             L.accessName = `パブリック`;
                             break;
                         case 'invite+':
-                            L.accessName = `インバイト+`;
+                            L.accessName = `インバイト＋`;
                             break;
                         case 'invite':
                             L.accessName = `インバイト`;
@@ -99,13 +85,13 @@ export default class extends baseClass {
                             L.accessName = `フレンド`;
                             break;
                         case 'friends+':
-                            L.accessName = `フレンド+`;
+                            L.accessName = `フレンド＋`;
                             break;
                         case 'group':
                             L.accessName = `グループ`;
                             this.getGroupName(L.groupId).then((groupName) => {
                                 if (groupName) {
-                                    L.accessName = `グループ${groupAccessType}(${groupName})`;
+                                    L.accessName = `グループ${groupAccessType}`;
                                 }
                             });
                             break;
