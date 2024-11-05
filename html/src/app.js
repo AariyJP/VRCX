@@ -8237,6 +8237,10 @@ speechSynthesis.getVoices();
         'discordHideImage',
         false
     );
+    $app.data.discordDetails = await configRepository.getBool(
+        'discordDetails',
+        true
+    );
 
     // setting defaults
     $app.data.sharedFeedFiltersDefaults = {

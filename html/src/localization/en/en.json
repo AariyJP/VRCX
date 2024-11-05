@@ -394,7 +394,8 @@
                     "instance_type_player_count": "Instance type/player count",
                     "join_button": "Join button (public only)",
                     "show_details_in_private": "Show world details in private",
-                    "show_images": "Show world images"
+                  "show_images": "Show world images",
+                  "discord_details": "Show details"
                 }
             },
             "advanced": {

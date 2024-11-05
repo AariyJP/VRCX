@@ -12,7 +12,8 @@ export default class extends baseClass {
         discordInstance: true,
         discordJoinButton: false,
         discordHideInvite: true,
-        discordHideImage: false
+        discordHideImage: false,
+        discordDetails: true
     };
 
     _methods = {
@@ -213,24 +214,43 @@ export default class extends baseClass {
             } else if (!this.discordHideImage && L.thumbnailImageUrl) {
                 bigIcon = L.thumbnailImageUrl;
             }
-            Discord.SetAssets(
-                bigIcon, // big icon
-                'ぶいあーるちゃっと', // big icon hover text
-                L.statusImage, // small icon
-                L.statusName, // small icon hover text
-                partyId, // party id
-                partySize, // party size
-                partyMaxSize, // party max size
-                buttonText, // button text
-                buttonUrl, // button url
-                appId // app id
-            );
+            if (!this.discordDetails) {
+                Discord.SetAssets(
+                    'vrchat', // big icon
+                    'ぶいあーるちゃっと', // big icon hover text
+                    '', // small icon
+                    '', // small icon hover text
+                    '', // party id
+                    0, // party size
+                    0, // party max size
+                    '', // button text
+                    '', // button url
+                    appId // app id
+                )
+            }
+            else {
+                Discord.SetAssets(
+                    bigIcon, // big icon
+                    'ぶいあーるちゃっと', // big icon hover text
+                    L.statusImage, // small icon
+                    L.statusName, // small icon hover text
+                    partyId, // party id
+                    partySize, // party size
+                    partyMaxSize, // party max size
+                    buttonText, // button text
+                    buttonUrl, // button url
+                    appId // app id
+                );
+            }
             // NOTE
             // 글자 수가 짧으면 업데이트가 안된다..
             if (L.worldName.length < 2) {
                 L.worldName += '\uFFA0'.repeat(2 - L.worldName.length);
             }
-            if (hidePrivate) {
+            if (!this.discordDetails) {
+                Discord.SetText('', '');
+            }
+            else if (hidePrivate) {
                 Discord.SetText('プライベート', '');
             }
             //else if (hideFriends) {
@@ -241,6 +261,7 @@ export default class extends baseClass {
             } else {
                 Discord.SetText(L.worldName, '');
             }
+
         },
 
         async setDiscordActive(active) {
@@ -266,6 +287,10 @@ export default class extends baseClass {
             await configRepository.setBool(
                 'discordHideImage',
                 this.discordHideImage
+            );
+            await configRepository.setBool(
+                'discordDetails',
+                this.discordDetails
             );
             this.lastLocation$.tag = '';
             this.nextDiscordUpdate = 3;

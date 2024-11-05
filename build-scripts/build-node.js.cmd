@@ -1,5 +1,5 @@
 cd ../html
-call npm ci
+call npm i
 call npm run production
 cd ..
 pause

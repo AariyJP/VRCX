@@ -419,6 +419,9 @@ mixin settingsTab()
                     div.options-container-item
                         span.name {{ $t('view.settings.discord_presence.discord_presence.show_images') }}
                         el-switch(v-model="discordHideImage" @change="saveDiscordOption" :active-value="false" :inactive-value="true" :disabled="!discordActive")
+                        div.options-container-item
+                        span.name {{ $t('view.settings.discord_presence.discord_presence.discord_details') }}
+                        el-switch(v-model="discordDetails" @change="saveDiscordOption" :disabled="!discordActive")
             //- "Advanced" Tab
             el-tab-pane(:label="$t('view.settings.category.advanced')")
                 //- Advanced | Advanced
