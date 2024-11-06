@@ -13,12 +13,12 @@ export default class extends baseClass {
         discordJoinButton: false,
         discordHideInvite: true,
         discordHideImage: false,
-        discordDetails: true
+        discordDetails: true,
+        discordFriends: true
     };
 
     _methods = {
         updateDiscord() {
-            var timeStamp;
             var currentLocation = this.lastLocation.location;
             Discord.SetTimestamps(API.currentUser.$online_for, 0);
             if (this.lastLocation.location === 'traveling') {
@@ -101,7 +101,6 @@ export default class extends baseClass {
                 this.lastLocation$ = L;
             }
             var hidePrivate = false;
-            var hideFriends = false;
             if (
                 this.discordHideInvite &&
                 (L.accessType === 'invite' ||
@@ -115,7 +114,9 @@ export default class extends baseClass {
                 (L.accessType === 'friends')
             )
             {
-                hideFriends = true;
+                if(!this.discordFriends) {
+                    hidePrivate = true;
+                }
             }
             switch (API.currentUser.status) {
                 case 'active':
@@ -164,13 +165,6 @@ export default class extends baseClass {
                 buttonText = '';
                 buttonUrl = '';
             }
-            //else if (hideFriends) {
-            //    partyId = '';
-            //    partySize = 0;
-            //    partyMaxSize = 0;
-            //    buttonText = '';
-            //    buttonUrl = '';
-            //}
             else if (this.isRpcWorld(L.tag)) {
                 // custom world rpc
                 if (
@@ -217,7 +211,7 @@ export default class extends baseClass {
             if (!this.discordDetails) {
                 Discord.SetAssets(
                     'vrchat', // big icon
-                    'ぶいあーるちゃっと', // big icon hover text
+                    '', // big icon hover text
                     '', // small icon
                     '', // small icon hover text
                     '', // party id
@@ -231,7 +225,7 @@ export default class extends baseClass {
             else {
                 Discord.SetAssets(
                     bigIcon, // big icon
-                    'ぶいあーるちゃっと', // big icon hover text
+                    '', // big icon hover text
                     L.statusImage, // small icon
                     L.statusName, // small icon hover text
                     partyId, // party id
@@ -253,9 +247,6 @@ export default class extends baseClass {
             else if (hidePrivate) {
                 Discord.SetText('プライベート', '');
             }
-            //else if (hideFriends) {
-            //    Discord.SetText('プライベート', 'フレンド');
-            //}
             else if (this.discordInstance) {
                 Discord.SetText(L.worldName, L.accessName);
             } else {
@@ -291,6 +282,10 @@ export default class extends baseClass {
             await configRepository.setBool(
                 'discordDetails',
                 this.discordDetails
+            );
+            await configRepository.setBool(
+                'discordFriends',
+                this.discordFriends
             );
             this.lastLocation$.tag = '';
             this.nextDiscordUpdate = 3;

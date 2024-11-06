@@ -8241,6 +8241,10 @@ speechSynthesis.getVoices();
         'discordDetails',
         true
     );
+    $app.data.discordFriends = await configRepository.getBool(
+        'discordFriends',
+        true
+    );
 
     // setting defaults
     $app.data.sharedFeedFiltersDefaults = {
