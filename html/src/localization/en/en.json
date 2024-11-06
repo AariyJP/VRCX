@@ -90,14 +90,18 @@
                 "search": "Search",
                 "vrchat_favorites": "VRChat Favorites",
                 "local_favorites": "Local Favorites",
-                "new_group": "New Group"
+                "new_group": "New Group",
+                "refresh": "Refresh",
+                "cancel_refresh": "Cancel Refresh"
             },
             "avatars": {
                 "header": "Avatars",
                 "search": "Search",
                 "vrchat_favorites": "VRChat Favorites",
                 "local_favorites": "Local Favorites (Requires VRC+)",
-                "new_group": "New Group"
+                "new_group": "New Group",
+                "refresh": "Refresh",
+                "cancel_refresh": "Cancel Refresh"
             },
             "bulk_unfavorite_mode": "Bulk Unfavorite Mode",
             "bulk_unfavorite_selection": "Bulk Unfavorite Selection",
@@ -473,7 +477,6 @@
                         "instance_cache": "Instance cache:",
                         "clear_cache": "Clear Cache",
                         "auto_clear_cache": "Auto Clear Cache",
-                        "download_history": "Download History",
                         "show_console": "Show Console"
                     },
                     "sqlite_table_size": {
