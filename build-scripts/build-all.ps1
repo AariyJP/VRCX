@@ -11,12 +11,11 @@ $ZipName = "VRCX_" + $Date + ".zip"
 $SetupName = "VRCX_" + $Date + "_Setup.exe"
 
 Write-Host "Building .Net..." -ForegroundColor Green
-dotnet build VRCX.sln -p:Configuration=Release -p:Platform=x64 -p:RestorePackagesConfig=true -t:"Restore;Clean;Build" -m --self-contained
+dotnet build VRCX.sln -p:Configuration=Release -p:Platform=x64 -p:RestorePackagesConfig=true -t:"Restore;Build" -m --self-contained
 
 Write-Host "Building Node.js..." -ForegroundColor Green
 cd "html"
-Remove-Item -Path "node_modules" -Force -Recurse -ErrorAction SilentlyContinue
-npm ci --loglevel=error
+npm i --loglevel=error
 npm run prod
 cd ..
 Remove-Item -Path "bin\x64\Release\html" -Force -Recurse -ErrorAction SilentlyContinue
