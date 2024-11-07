@@ -208,6 +208,10 @@ export default class extends baseClass {
             } else if (!this.discordHideImage && L.thumbnailImageUrl) {
                 bigIcon = L.thumbnailImageUrl;
             }
+            if (this.discordJoinButton) {
+                buttonText = 'VRChat on Steam'
+                buttonUrl = 'https://store.steampowered.com/app/438100/VRChat/';
+            }
             if (!this.discordDetails) {
                 Discord.SetAssets(
                     'vrchat', // big icon
@@ -217,8 +221,8 @@ export default class extends baseClass {
                     '', // party id
                     0, // party size
                     0, // party max size
-                    '', // button text
-                    '', // button url
+                    buttonText, // button text
+                    buttonUrl, // button url
                     appId // app id
                 )
             }
