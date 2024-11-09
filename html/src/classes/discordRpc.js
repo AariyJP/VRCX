@@ -209,8 +209,8 @@ export default class extends baseClass {
                 bigIcon = L.thumbnailImageUrl;
             }
             if (this.discordJoinButton) {
-                buttonText = 'VRChat on Steam'
-                buttonUrl = 'https://store.steampowered.com/app/438100/VRChat/';
+                buttonText = `${$app.API.currentUser.displayName} on VRChat`
+                buttonUrl = `https://vrchat.com/home/user/${$app.API.currentUser.id}`;
             }
             if (!this.discordDetails) {
                 Discord.SetAssets(
