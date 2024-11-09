@@ -1356,6 +1356,7 @@ speechSynthesis.getVoices();
                 }
             });
 
+            // we don't update friend state here, it's not reliable
             var state = 'offline';
             if (json.platform === 'web') {
                 state = 'active';
@@ -4490,7 +4491,7 @@ speechSynthesis.getVoices();
             ) {
                 if (this.debugFriendState) {
                     console.log(
-                        `Fetching offline friend in an instance ${ctx.name}`
+                        `Fetching offline friend in an instance from getCurrentUser ${ctx.name}`
                     );
                 }
                 API.getUser({
@@ -4547,7 +4548,21 @@ speechSynthesis.getVoices();
             ctx.isVIP = isVIP;
             if (typeof ref !== 'undefined') {
                 ctx.name = ref.displayName;
+
+                // wtf, from getCurrentUser only, fetch user if online in offline location
+                if (fromGetCurrentUser && stateInput === 'online') {
+                    if (this.debugFriendState) {
+                        console.log(
+                            `Fetching friend coming online from getCurrentUser ${ctx.name}`
+                        );
+                    }
+                    API.getUser({
+                        userId: id
+                    });
+                    return;
+                }
             }
+
             this.updateFriendDelayedCheck(ctx, location, $location_at);
         }
     };
@@ -8001,7 +8016,12 @@ speechSynthesis.getVoices();
     if (!(await VRCXStorage.Get('VRCX_ProxyServer'))) {
         await VRCXStorage.Set('VRCX_ProxyServer', '');
     }
+    if ((await VRCXStorage.Get('VRCX_DisableGpuAcceleration')) === '') {
+        await VRCXStorage.Set('VRCX_DisableGpuAcceleration', 'false');
+    }
     $app.data.proxyServer = await VRCXStorage.Get('VRCX_ProxyServer');
+    $app.data.disableGpuAcceleration =
+        (await VRCXStorage.Get('VRCX_DisableGpuAcceleration')) === 'true';
     $app.data.disableWorldDatabase =
         (await VRCXStorage.Get('VRCX_DisableWorldDatabase')) === 'true';
     $app.methods.saveVRCXWindowOption = async function () {
@@ -8017,6 +8037,10 @@ speechSynthesis.getVoices();
         VRCXStorage.Set(
             'VRCX_DisableWorldDatabase',
             this.disableWorldDatabase.toString()
+        );
+        VRCXStorage.Set(
+            'VRCX_DisableGpuAcceleration',
+            this.disableGpuAcceleration.toString()
         );
         AppApi.SetStartup(this.isStartAtWindowsStartup);
     };
@@ -11721,27 +11745,51 @@ speechSynthesis.getVoices();
             });
     };
 
-    $app.methods.addFavoriteWorld = function (ref, group) {
+    $app.methods.addFavoriteWorld = function (ref, group, message) {
         return API.addFavorite({
             type: 'world',
             favoriteId: ref.id,
             tags: group.name
+        }).then((args) => {
+            if (message) {
+                this.$message({
+                    message: 'World added to favorites',
+                    type: 'success'
+                });
+            }
+            return args;
         });
     };
 
-    $app.methods.addFavoriteAvatar = function (ref, group) {
+    $app.methods.addFavoriteAvatar = function (ref, group, message) {
         return API.addFavorite({
             type: 'avatar',
             favoriteId: ref.id,
             tags: group.name
+        }).then((args) => {
+            if (message) {
+                this.$message({
+                    message: 'Avatar added to favorites',
+                    type: 'success'
+                });
+            }
+            return args;
         });
     };
 
-    $app.methods.addFavoriteUser = function (ref, group) {
+    $app.methods.addFavoriteUser = function (ref, group, message) {
         return API.addFavorite({
             type: 'friend',
             favoriteId: ref.id,
             tags: group.name
+        }).then((args) => {
+            if (message) {
+                this.$message({
+                    message: 'Friend added to favorites',
+                    type: 'success'
+                });
+            }
+            return args;
         });
     };
 
@@ -18745,7 +18793,8 @@ speechSynthesis.getVoices();
                 if (D.worldImportFavoriteGroup) {
                     await this.addFavoriteWorld(
                         ref,
-                        D.worldImportFavoriteGroup
+                        D.worldImportFavoriteGroup,
+                        false
                     );
                 } else if (D.worldImportLocalFavoriteGroup) {
                     this.addLocalWorldFavorite(
@@ -18984,7 +19033,8 @@ speechSynthesis.getVoices();
                 if (D.avatarImportFavoriteGroup) {
                     await this.addFavoriteAvatar(
                         ref,
-                        D.avatarImportFavoriteGroup
+                        D.avatarImportFavoriteGroup,
+                        false
                     );
                 } else if (D.avatarImportLocalFavoriteGroup) {
                     this.addLocalAvatarFavorite(
@@ -19213,7 +19263,11 @@ speechSynthesis.getVoices();
                     break;
                 }
                 var ref = data[i];
-                await this.addFavoriteUser(ref, D.friendImportFavoriteGroup);
+                await this.addFavoriteUser(
+                    ref,
+                    D.friendImportFavoriteGroup,
+                    false
+                );
                 $app.removeFromArray(this.friendImportTable.data, ref);
                 D.userIdList.delete(ref.id);
                 D.importProgress++;
@@ -19513,7 +19567,7 @@ speechSynthesis.getVoices();
     // #endregion
     // #region | App: bulk unfavorite
 
-    $app.data.bulkUnfavoriteMode = false;
+    $app.data.editFavoritesMode = false;
 
     $app.methods.showBulkUnfavoriteSelectionConfirm = function () {
         var elementsTicked = [];
@@ -19559,7 +19613,65 @@ speechSynthesis.getVoices();
                 objectId: id
             });
         }
-        this.bulkUnfavoriteMode = false;
+        this.editFavoritesMode = false;
+    };
+
+    $app.methods.bulkCopyFavoriteSelection = function () {
+        var idList = '';
+        var type = '';
+        for (var ctx of this.favoriteFriends) {
+            if (ctx.$selected) {
+                idList += ctx.id + '\n';
+                type = 'friend';
+            }
+        }
+        for (var ctx of this.favoriteWorlds) {
+            if (ctx.$selected) {
+                idList += ctx.id + '\n';
+                type = 'world';
+            }
+        }
+        for (var ctx of this.favoriteAvatars) {
+            if (ctx.$selected) {
+                idList += ctx.id + '\n';
+                type = 'avatar';
+            }
+        }
+        switch (type) {
+            case 'friend':
+                this.showFriendImportDialog();
+                this.friendImportDialog.input = idList;
+                this.processFriendImportList();
+                break;
+
+            case 'world':
+                this.showWorldImportDialog();
+                this.worldImportDialog.input = idList;
+                this.processWorldImportList();
+                break;
+
+            case 'avatar':
+                this.showAvatarImportDialog();
+                this.avatarImportDialog.input = idList;
+                this.processAvatarImportList();
+                break;
+
+            default:
+                break;
+        }
+        console.log('Favorite selection\n', idList);
+    };
+
+    $app.methods.clearBulkFavoriteSelection = function () {
+        for (var ctx of this.favoriteFriends) {
+            ctx.$selected = false;
+        }
+        for (var ctx of this.favoriteWorlds) {
+            ctx.$selected = false;
+        }
+        for (var ctx of this.favoriteAvatars) {
+            ctx.$selected = false;
+        }
     };
 
     // #endregion
