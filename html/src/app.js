@@ -1390,19 +1390,16 @@ speechSynthesis.getVoices();
             n: 50,
             offset: 0
         };
+        // API offset limit is 5000
         mainLoop: for (var i = 100; i > -1; i--) {
-            if (params.offset > 5000) {
-                // API offset limit is 5000
-                break;
-            }
             retryLoop: for (var j = 0; j < 10; j++) {
                 // handle 429 ratelimit error, retry 10 times
                 try {
                     var args = await this.getFriends(params);
-                    friends = friends.concat(args.json);
-                    if (!args.json || args.json.length < 50) {
+                    if (!args.json || args.json.length === 0) {
                         break mainLoop;
                     }
+                    friends = friends.concat(args.json);
                     break retryLoop;
                 } catch (err) {
                     console.error(err);
@@ -1413,9 +1410,6 @@ speechSynthesis.getVoices();
                     if (err?.message?.includes('Not Found')) {
                         console.error('Awful workaround for awful VRC API bug');
                         break retryLoop;
-                    }
-                    if (j === 9) {
-                        throw err;
                     }
                     await new Promise((resolve) => {
                         workerTimers.setTimeout(resolve, 5000);
@@ -4557,7 +4551,10 @@ speechSynthesis.getVoices();
             console.log(
                 `${ctx.name} updateFriendState ${ctx.state} -> ${newState}`
             );
-            if (location !== ctx.ref?.location) {
+            if (
+                typeof ctx.ref !== 'undefined' &&
+                location !== ctx.ref.location
+            ) {
                 console.log(
                     `${ctx.name} pendingOfflineLocation ${location} -> ${ctx.ref.location}`
                 );
@@ -4602,14 +4599,14 @@ speechSynthesis.getVoices();
                 ctx.ref.$online_for = Date.now();
                 ctx.ref.$offline_for = '';
                 ctx.ref.$active_for = '';
-                var worldName = await this.getWorldName(ref.location);
+                var worldName = await this.getWorldName(location);
                 var groupName = await this.getGroupName(location);
                 var feed = {
                     created_at: new Date().toJSON(),
                     type: 'Online',
                     userId: id,
                     displayName: ctx.name,
-                    location: ref.location,
+                    location,
                     worldName,
                     groupName,
                     time: ''
@@ -5699,6 +5696,138 @@ speechSynthesis.getVoices();
             database.addBioToDatabase(feed);
         }
     });
+
+    /**
+     * Function that prepare the Longest Common Subsequence (LCS) scores matrix
+     * @param {*} s1 String 1
+     * @param {*} s2 String 2
+     * @returns
+     */
+    $app.methods.lcsMatrix = function (s1, s2) {
+        const m = s1.length;
+        const n = s2.length;
+        const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+        // Fill the matrix for LCS
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                if (s1[i - 1] === s2[j - 1]) {
+                    dp[i][j] = dp[i - 1][j - 1] + 1;
+                } else {
+                    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                }
+            }
+        }
+
+        return dp;
+    };
+
+    /**
+     * Function that find the differences between both strings, and return the differences and their position in the strings.
+     * @param {*} s1 String 1
+     * @param {*} s2 String 2
+     * @returns
+     */
+    $app.methods.findDifferences = function (s1, s2) {
+        const dp = $app.lcsMatrix(s1, s2);
+        const differencesS1 = [];
+        const differencesS2 = [];
+        let i = s1.length;
+        let j = s2.length;
+
+        // Backtrack to find differences
+        while (i > 0 && j > 0) {
+            if (s1[i - 1] === s2[j - 1]) {
+                i--;
+                j--;
+            } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+                differencesS1.push({ index: i - 1, char: s1[i - 1] }); // Deletion in s1
+                i--;
+            } else {
+                differencesS2.push({ index: j - 1, char: s2[j - 1] }); // Insertion in s2
+                j--;
+            }
+        }
+
+        // Remaining characters in s1 (deletions)
+        while (i > 0) {
+            differencesS1.push({ index: i - 1, char: s1[i - 1] });
+            i--;
+        }
+
+        // Remaining characters in s2 (insertions)
+        while (j > 0) {
+            differencesS2.push({ index: j - 1, char: s2[j - 1] });
+            j--;
+        }
+
+        return {
+            differencesS1: differencesS1.reverse(), // Reverse to maintain original order
+            differencesS2: differencesS2.reverse()
+        };
+    };
+
+    $app.methods.findSequences = function (arr) {
+        if (arr.length === 0) return [];
+        return arr.reduce(
+            (p, c, i) => {
+                if (i === 0) return p;
+                let lastSeq = p.pop();
+                p.push(lastSeq);
+                if (c - lastSeq[1] !== 1) {
+                    p.push([c, c]);
+                } else {
+                    lastSeq[1] = c;
+                }
+                return p;
+            },
+            [[arr[0], arr[0]]]
+        );
+    };
+
+    /**
+     * Function that format the differences between two strings with HTML tags
+     * markerStartTag and markerEndTag are optional, if emitted, the differences will be highlighted with yellow and underlined.
+     * @param {*} s1
+     * @param {*} s2
+     * @param {*} markerStartTag
+     * @param {*} markerEndTag
+     * @returns An array that contains both the string 1 and string 2, which the differences are formatted with HTML tags
+     */
+    $app.methods.formatDifference = function (
+        s1,
+        s2,
+        markerStartTag = '<u><font color="yellow">',
+        markerEndTag = '</font></u>'
+    ) {
+        const texts = [s1, s2];
+        const differs = $app.findDifferences(s1, s2);
+        return Object.values(differs)
+            .map((i) => $app.findSequences(i.map((j) => j.index)))
+            .map((i, k) => {
+                let stringBuilder = [];
+                let lastPos = 0;
+                let key = Date.now();
+                i.forEach((j) => {
+                    stringBuilder.push(texts[k].substring(lastPos, j[0]));
+                    stringBuilder.push(
+                        `{{diffTag-${key}}}${texts[k].substring(j[0], j[1] + 1)}{{diffTagClose-${key}}}`
+                    );
+                    lastPos = j[1] + 1;
+                });
+                stringBuilder.push(texts[k].substr(lastPos, texts[k].length));
+                let returnVal = stringBuilder
+                    .join('')
+                    .replaceAll(/&/g, '&amp;')
+                    .replaceAll(/</g, '&lt;')
+                    .replaceAll(/>/g, '&gt;')
+                    .replaceAll(/"/g, '&quot;')
+                    .replaceAll(/'/g, '&#039;')
+                    .replaceAll(`{{diffTag-${key}}}`, markerStartTag)
+                    .replaceAll(`{{diffTagClose-${key}}}`, markerEndTag);
+                return returnVal;
+            });
+    };
 
     // #endregion
     // #region | App: gameLog
@@ -9241,6 +9370,7 @@ speechSynthesis.getVoices();
         D.dateFriended = '';
         D.unFriended = false;
         D.dateFriendedInfo = [];
+        this.userDialogGroupEditMode = false;
         if (userId === API.currentUser.id) {
             this.getWorldName(API.currentUser.homeLocation).then(
                 (worldName) => {
@@ -16860,9 +16990,37 @@ speechSynthesis.getVoices();
         this.saveCurrentUserGroups();
     };
 
+    $app.data.inGameGroupOrder = [];
+
+    $app.methods.updateInGameGroupOrder = async function () {
+        this.inGameGroupOrder = [];
+        try {
+            var json = await AppApi.GetVRChatRegistryKey(
+                `VRC_GROUP_ORDER_${API.currentUser.id}`
+            );
+            this.inGameGroupOrder = JSON.parse(json);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    $app.methods.sortGroupsByInGame = function (a, b) {
+        var aIndex = this.inGameGroupOrder.indexOf(a?.id);
+        var bIndex = this.inGameGroupOrder.indexOf(b?.id);
+        if (aIndex === -1 && bIndex === -1) {
+            return 0;
+        }
+        if (aIndex === -1) {
+            return 1;
+        }
+        if (bIndex === -1) {
+            return -1;
+        }
+        return aIndex - bIndex;
+    };
+
     $app.methods.sortCurrentUserGroups = async function () {
         var D = this.userDialog;
-        var inGameGroupList = [];
         var sortMethod = function () {};
 
         switch (D.groupSorting.value) {
@@ -16873,34 +17031,85 @@ speechSynthesis.getVoices();
                 sortMethod = compareByMemberCount;
                 break;
             case 'inGame':
-                sortMethod = function (a, b) {
-                    var aIndex = inGameGroupList.indexOf(a?.id);
-                    var bIndex = inGameGroupList.indexOf(b?.id);
-                    if (aIndex === -1 && bIndex === -1) {
-                        return 0;
-                    }
-                    if (aIndex === -1) {
-                        return 1;
-                    }
-                    if (bIndex === -1) {
-                        return -1;
-                    }
-                    return aIndex - bIndex;
-                };
-                try {
-                    var json = await AppApi.GetVRChatRegistryKey(
-                        `VRC_GROUP_ORDER_${API.currentUser.id}`
-                    );
-                    inGameGroupList = JSON.parse(json);
-                } catch (err) {
-                    console.error(err);
-                }
+                sortMethod = this.sortGroupsByInGame;
+                await this.updateInGameGroupOrder();
                 break;
         }
 
         this.userGroups.ownGroups.sort(sortMethod);
         this.userGroups.mutualGroups.sort(sortMethod);
         this.userGroups.remainingGroups.sort(sortMethod);
+    };
+
+    $app.data.userDialogGroupEditMode = false;
+    $app.data.userDialogGroupEditGroups = [];
+
+    $app.methods.editModeCurrentUserGroups = async function () {
+        await this.updateInGameGroupOrder();
+        this.userDialogGroupEditGroups = Array.from(
+            API.currentUserGroups.values()
+        );
+        this.userDialogGroupEditGroups.sort(this.sortGroupsByInGame);
+        this.userDialogGroupEditMode = true;
+    };
+
+    $app.methods.exitEditModeCurrentUserGroups = async function () {
+        this.userDialogGroupEditMode = false;
+        this.userDialogGroupEditGroups = [];
+        await this.sortCurrentUserGroups();
+    };
+
+    $app.methods.moveGroupUp = function (groupId) {
+        var index = this.inGameGroupOrder.indexOf(groupId);
+        if (index > 0) {
+            this.inGameGroupOrder.splice(index, 1);
+            this.inGameGroupOrder.splice(index - 1, 0, groupId);
+            this.saveInGameGroupOrder();
+        }
+    };
+
+    $app.methods.moveGroupDown = function (groupId) {
+        var index = this.inGameGroupOrder.indexOf(groupId);
+        if (index < this.inGameGroupOrder.length - 1) {
+            this.inGameGroupOrder.splice(index, 1);
+            this.inGameGroupOrder.splice(index + 1, 0, groupId);
+            this.saveInGameGroupOrder();
+        }
+    };
+
+    $app.methods.moveGroupTop = function (groupId) {
+        var index = this.inGameGroupOrder.indexOf(groupId);
+        if (index > 0) {
+            this.inGameGroupOrder.splice(index, 1);
+            this.inGameGroupOrder.unshift(groupId);
+            this.saveInGameGroupOrder();
+        }
+    };
+
+    $app.methods.moveGroupBottom = function (groupId) {
+        var index = this.inGameGroupOrder.indexOf(groupId);
+        if (index < this.inGameGroupOrder.length - 1) {
+            this.inGameGroupOrder.splice(index, 1);
+            this.inGameGroupOrder.push(groupId);
+            this.saveInGameGroupOrder();
+        }
+    };
+
+    $app.methods.saveInGameGroupOrder = async function () {
+        this.userDialogGroupEditGroups.sort(this.sortGroupsByInGame);
+        try {
+            await AppApi.SetVRChatRegistryKey(
+                `VRC_GROUP_ORDER_${API.currentUser.id}`,
+                JSON.stringify(this.inGameGroupOrder),
+                3
+            );
+        } catch (err) {
+            console.error(err);
+            this.$message({
+                message: 'Failed to save in-game group order',
+                type: 'error'
+            });
+        }
     };
 
     // #endregion
