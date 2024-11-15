@@ -137,13 +137,13 @@ namespace VRCX
             m_Lock.EnterWriteLock();
             try
             {
-                if (string.IsNullOrEmpty(largeKey) &&
-                    string.IsNullOrEmpty(smallKey))
-                {
-                    m_Presence.Assets = null;
-                }
-                else
-                {
+                // if (string.IsNullOrEmpty(largeKey) &&
+                //     string.IsNullOrEmpty(smallKey))
+                // {
+                //     m_Presence.Assets = null;
+                // }
+                // else
+                // {
                     m_Presence.Assets ??= new Assets();
                     m_Presence.Party ??= new Party();
                     m_Presence.Assets.LargeImageKey = largeKey;
@@ -172,7 +172,7 @@ namespace VRCX
                         }
                         Update();
                     }
-                }
+                // }
             }
             finally
             {
