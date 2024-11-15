@@ -34,7 +34,7 @@ namespace VRCX
 
         internal void Init()
         {
-            m_Timer.Change(0, 1000);
+            m_Timer.Change(0, 10000);
         }
 
         internal void Exit()
