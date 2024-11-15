@@ -213,6 +213,7 @@ export default class extends baseClass {
                 buttonUrl = `https://vrchat.com/home/user/${$app.API.currentUser.id}`;
             }
             if (!this.discordDetails) {
+                appId = '378435294170447882';
                 Discord.SetAssets(
                     'vrchat', // big icon
                     '', // big icon hover text
@@ -224,7 +225,7 @@ export default class extends baseClass {
                     buttonText, // button text
                     buttonUrl, // button url
                     appId // app id
-                )
+                );
             }
             else {
                 Discord.SetAssets(
