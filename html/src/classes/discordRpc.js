@@ -214,8 +214,12 @@ export default class extends baseClass {
             }
             if (!this.discordDetails) {
                 appId = '378435294170447882'; // Official VRChat App
+                bigIcon =
+                    'vrchat-logo' // Official VRChat
+                    // 'vrchat' // VRCX
+                ;
                 Discord.SetAssets(
-                    '', // big icon
+                    bigIcon, // big icon
                     '', // big icon hover text
                     '', // small icon
                     '', // small icon hover text
