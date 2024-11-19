@@ -226,7 +226,9 @@
                     "minimized": "Start minimized",
                     "tray": "Minimize to tray when closing",
                     "disable_gpu_acceleration": "Disable GPU Acceleration",
-                    "disable_gpu_acceleration_tooltip": "Only change this option if you know what you're doing, may fix issues with UI, requires restarting VRCX",
+                    "disable_gpu_acceleration_tooltip": "Only change this option if you know what you're doing, breaks SteamVR overlay, may fix issues with UI, requires restarting VRCX",
+                    "disable_vr_overlay_gpu_acceleration": "Disable VR Overlay GPU Acceleration",
+                    "disable_vr_overlay_gpu_acceleration_tooltip": "VR Overlay GPU acceleration can cause VRCX to crash or cause VRAM memory leaks, requires restarting VRCX",
                     "proxy": "Proxy settings"
                 },
                 "favorites": {
@@ -432,6 +434,11 @@
                     "local_world_persistence": {
                         "header": "Local World Persistence",
                         "description": "Localhost webserver (requires restart)"
+                    },
+                    "save_instance_prints_to_file": {
+                        "header": "Save Instance Prints To File",
+                        "header_tooltip": "Requires \"--enable-sdk-log-levels\" VRC launch option",
+                        "description": "Save spawned prints to your VRChat Pictures folder"
                     },
                     "remote_database": {
                         "header": "Remote Avatar Database",
@@ -648,6 +655,7 @@
                 "sort_by": "Sort by:",
                 "edit_mode": "Edit Mode",
                 "exit_edit_mode": "Exit Edit Mode",
+                "hold_shift": "Hold shift to leave without confirmation",
                 "own_groups": "Own Groups",
                 "mutual_groups": "Mutual Groups",
                 "groups": "Groups",
@@ -724,6 +732,7 @@
                 "change_preview": "Change Youtube Preview",
                 "change_tags": "Change Tags",
                 "change_image": "Change Image",
+                "change_allowed_video_player_domains": "Change Allowed Video Player Domains",
                 "download_package": "Download Unity Package",
                 "publish_to_labs": "Publish To Labs",
                 "unpublish": "Unpublish",
@@ -1266,6 +1275,7 @@
             "icons": "Icons",
             "emojis": "Emojis",
             "stickers": "Stickers",
+            "prints": "Prints",
             "refresh": "Refresh",
             "upload": "Upload",
             "clear": "Clear",
@@ -1407,6 +1417,11 @@
             "default_emojis": "Default Emojis",
             "cancel": "Cancel",
             "send": "Send"
+        },
+        "allowed_video_player_domains": {
+            "header": "Allowed Video Player Domains",
+            "add_domain": "Add Domain",
+            "save": "Save"
         }
     },
     "prompt": {

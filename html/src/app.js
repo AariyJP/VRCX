@@ -128,7 +128,8 @@ speechSynthesis.getVoices();
             isSteamVRRunning: false,
             isHmdAfk: false,
             appVersion: '',
-            latestAppVersion: ''
+            latestAppVersion: '',
+            shiftHeld: false
         },
         i18n,
         computed: {},
@@ -234,6 +235,12 @@ speechSynthesis.getVoices();
         e.preventDefault();
     });
 
+    document.addEventListener('keydown', function (e) {
+        if (e.shiftKey) {
+            $app.shiftHeld = true;
+        }
+    });
+
     document.addEventListener('keyup', function (e) {
         if (e.ctrlKey) {
             if (e.key === 'I') {
@@ -251,6 +258,10 @@ speechSynthesis.getVoices();
             $app.screenshotMetadataDialog?.visible
         ) {
             $app.screenshotMetadataCarouselChange(carouselNavigation);
+        }
+
+        if (!e.shiftKey) {
+            $app.shiftHeld = false;
         }
     });
 
@@ -1857,7 +1868,7 @@ speechSynthesis.getVoices();
 
     API.$on('NOTIFICATION:LIST:HIDDEN', function (args) {
         for (var json of args.json) {
-            json.type = 'hiddenFriendRequest';
+            json.type = 'ignoredFriendRequest';
             this.$emit('NOTIFICATION', {
                 json,
                 params: {
@@ -1907,7 +1918,7 @@ speechSynthesis.getVoices();
         args.ref = ref;
         if (
             ref.type === 'friendRequest' ||
-            ref.type === 'hiddenFriendRequest' ||
+            ref.type === 'ignoredFriendRequest' ||
             ref.type.includes('.')
         ) {
             for (var i = array.length - 1; i >= 0; i--) {
@@ -1975,7 +1986,7 @@ speechSynthesis.getVoices();
         for (var i = array.length - 1; i >= 0; i--) {
             if (
                 array[i].type === 'friendRequest' ||
-                array[i].type === 'hiddenFriendRequest' ||
+                array[i].type === 'ignoredFriendRequest' ||
                 array[i].type.includes('.')
             ) {
                 array.splice(i, 1);
@@ -4486,6 +4497,10 @@ speechSynthesis.getVoices();
             if (typeof ref !== 'undefined') {
                 ctx.name = ref.displayName;
             }
+            if (!this.friendLogInitStatus) {
+                this.updateFriendDelayedCheck(ctx, location, $location_at);
+                return;
+            }
             // prevent status flapping
             if (ctx.pendingOffline) {
                 if (this.debugFriendState) {
@@ -4565,6 +4580,10 @@ speechSynthesis.getVoices();
                     `${ctx.name} pendingOfflineLocation ${location} -> ${ctx.ref.location}`
                 );
             }
+        }
+        if (!this.friends.has(id)) {
+            console.log('Friend not found', id);
+            return;
         }
         var isVIP = this.localFavoriteFriends.has(id);
         var ref = ctx.ref;
@@ -5443,7 +5462,11 @@ speechSynthesis.getVoices();
                 }
             }
             this.lastLocation.playerList.forEach((ref1) => {
-                if (ref1.userId && !API.cachedUsers.has(ref1.userId)) {
+                if (
+                    ref1.userId &&
+                    typeof ref1.userId === 'string' &&
+                    !API.cachedUsers.has(ref1.userId)
+                ) {
                     API.getUser({ userId: ref1.userId });
                 }
             });
@@ -7179,15 +7202,18 @@ speechSynthesis.getVoices();
     };
 
     $app.methods.deleteFriendLog = function (row) {
-        // FIXME: 메시지 수정
+        $app.removeFromArray(this.friendLogTable.data, row);
+        database.deleteFriendLogHistory(row.rowId);
+    };
+
+    $app.methods.deleteFriendLogPrompt = function (row) {
         this.$confirm('Continue? Delete Log', 'Confirm', {
             confirmButtonText: 'Confirm',
             cancelButtonText: 'Cancel',
             type: 'info',
             callback: (action) => {
                 if (action === 'confirm') {
-                    $app.removeFromArray(this.friendLogTable.data, row);
-                    database.deleteFriendLogHistory(row.rowId);
+                    this.deleteFriendLog(row);
                 }
             }
         });
@@ -7257,17 +7283,20 @@ speechSynthesis.getVoices();
     });
 
     $app.methods.deletePlayerModeration = function (row) {
-        // FIXME: 메시지 수정
-        this.$confirm('Continue? Delete Moderation', 'Confirm', {
+        API.deletePlayerModeration({
+            moderated: row.targetUserId,
+            type: row.type
+        });
+    };
+
+    $app.methods.deletePlayerModerationPrompt = function (row) {
+        this.$confirm(`Continue? Delete Moderation ${row.type}`, 'Confirm', {
             confirmButtonText: 'Confirm',
             cancelButtonText: 'Cancel',
             type: 'info',
             callback: (action) => {
                 if (action === 'confirm') {
-                    API.deletePlayerModeration({
-                        moderated: row.targetUserId,
-                        type: row.type
-                    });
+                    this.deletePlayerModeration(row);
                 }
             }
         });
@@ -7380,7 +7409,7 @@ speechSynthesis.getVoices();
         if (ref.senderUserId !== this.currentUser.id) {
             if (
                 ref.type !== 'friendRequest' &&
-                ref.type !== 'hiddenFriendRequest' &&
+                ref.type !== 'ignoredFriendRequest' &&
                 !ref.type.includes('.')
             ) {
                 database.addNotificationToDatabase(ref);
@@ -7425,43 +7454,51 @@ speechSynthesis.getVoices();
     };
 
     $app.methods.hideNotification = function (row) {
+        if (row.type === 'ignoredFriendRequest') {
+            API.deleteHiddenFriendRequest(
+                {
+                    notificationId: row.id
+                },
+                row.senderUserId
+            );
+        } else {
+            API.hideNotification({
+                notificationId: row.id
+            });
+        }
+    };
+
+    $app.methods.hideNotificationPrompt = function (row) {
         this.$confirm(`Continue? Decline ${row.type}`, 'Confirm', {
             confirmButtonText: 'Confirm',
             cancelButtonText: 'Cancel',
             type: 'info',
             callback: (action) => {
                 if (action === 'confirm') {
-                    if (row.type === 'hiddenFriendRequest') {
-                        API.deleteHiddenFriendRequest(
-                            {
-                                notificationId: row.id
-                            },
-                            row.senderUserId
-                        );
-                    } else {
-                        API.hideNotification({
-                            notificationId: row.id
-                        });
-                    }
+                    this.hideNotification(row);
                 }
             }
         });
     };
 
     $app.methods.deleteNotificationLog = function (row) {
+        $app.removeFromArray(this.notificationTable.data, row);
+        if (
+            row.type !== 'friendRequest' &&
+            row.type !== 'ignoredFriendRequest'
+        ) {
+            database.deleteNotification(row.id);
+        }
+    };
+
+    $app.methods.deleteNotificationLogPrompt = function (row) {
         this.$confirm(`Continue? Delete ${row.type}`, 'Confirm', {
             confirmButtonText: 'Confirm',
             cancelButtonText: 'Cancel',
             type: 'info',
             callback: (action) => {
                 if (action === 'confirm') {
-                    $app.removeFromArray(this.notificationTable.data, row);
-                    if (
-                        row.type !== 'friendRequest' &&
-                        row.type !== 'hiddenFriendRequest'
-                    ) {
-                        database.deleteNotification(row.id);
-                    }
+                    this.deleteNotificationLog(row);
                 }
             }
         });
@@ -7573,6 +7610,7 @@ speechSynthesis.getVoices();
         },
         layout: 'table'
     };
+    $app.data.printTable = [];
     $app.data.stickerTable = [];
     $app.data.emojiTable = [];
     $app.data.VRCPlusIconsTable = [];
@@ -8134,15 +8172,27 @@ speechSynthesis.getVoices();
     if ((await VRCXStorage.Get('VRCX_DisableGpuAcceleration')) === '') {
         await VRCXStorage.Set('VRCX_DisableGpuAcceleration', 'false');
     }
+    if (
+        (await VRCXStorage.Get('VRCX_DisableVrOverlayGpuAcceleration')) === ''
+    ) {
+        await VRCXStorage.Set('VRCX_DisableVrOverlayGpuAcceleration', 'false');
+    }
     $app.data.proxyServer = await VRCXStorage.Get('VRCX_ProxyServer');
     $app.data.disableGpuAcceleration =
         (await VRCXStorage.Get('VRCX_DisableGpuAcceleration')) === 'true';
+    $app.data.disableVrOverlayGpuAcceleration =
+        (await VRCXStorage.Get('VRCX_DisableVrOverlayGpuAcceleration')) ===
+        'true';
     $app.data.disableWorldDatabase =
         (await VRCXStorage.Get('VRCX_DisableWorldDatabase')) === 'true';
     $app.methods.saveVRCXWindowOption = async function () {
         await configRepository.setBool(
             'VRCX_StartAtWindowsStartup',
             this.isStartAtWindowsStartup
+        );
+        await configRepository.setBool(
+            'VRCX_saveInstancePrints',
+            this.saveInstancePrints
         );
         VRCXStorage.Set(
             'VRCX_StartAsMinimizedState',
@@ -8156,6 +8206,10 @@ speechSynthesis.getVoices();
         VRCXStorage.Set(
             'VRCX_DisableGpuAcceleration',
             this.disableGpuAcceleration.toString()
+        );
+        VRCXStorage.Set(
+            'VRCX_DisableVrOverlayGpuAcceleration',
+            this.disableVrOverlayGpuAcceleration.toString()
         );
         AppApi.SetStartup(this.isStartAtWindowsStartup);
     };
@@ -11309,6 +11363,9 @@ speechSynthesis.getVoices();
                 break;
             case 'Change Tags':
                 this.showSetWorldTagsDialog();
+                break;
+            case 'Change Allowed Domains':
+                this.showWorldAllowedDomainsDialog();
                 break;
             case 'Download Unity Package':
                 this.openExternalLink(
@@ -15787,7 +15844,7 @@ speechSynthesis.getVoices();
         this.VRChatConfigList = {
             cache_size: {
                 name: $t('dialog.config_json.max_cache_size'),
-                default: '20',
+                default: '30',
                 type: 'number',
                 min: 20
             },
@@ -16076,8 +16133,11 @@ speechSynthesis.getVoices();
                 // D.metadata.resolution = `${regex[18]}x${regex[19]}`;
             }
         }
+        if (metadata.timestamp) {
+            D.metadata.dateTime = Date.parse(metadata.timestamp);
+        }
         if (!D.metadata.dateTime) {
-            D.metadata.dateTime = Date.parse(json.creationDate);
+            D.metadata.dateTime = Date.parse(metadata.creationDate);
         }
 
         if (this.fullscreenImageDialog?.visible) {
@@ -17128,6 +17188,7 @@ speechSynthesis.getVoices();
     $app.data.galleryDialogIconsLoading = false;
     $app.data.galleryDialogEmojisLoading = false;
     $app.data.galleryDialogStickersLoading = false;
+    $app.data.galleryDialogPrintsLoading = false;
 
     API.$on('LOGIN', function () {
         $app.galleryTable = [];
@@ -17140,6 +17201,7 @@ speechSynthesis.getVoices();
         this.refreshVRCPlusIconsTable();
         this.refreshEmojiTable();
         this.refreshStickerTable();
+        this.refreshPrintTable();
         workerTimers.setTimeout(() => this.setGalleryTab(pageNum), 100);
     };
 
@@ -17402,6 +17464,201 @@ speechSynthesis.getVoices();
             $app.stickerTable.unshift(args.json);
         }
     });
+
+    // #endregion
+    // #region | Prints
+    API.$on('LOGIN', function () {
+        $app.printTable = [];
+    });
+
+    $app.methods.refreshPrintTable = function () {
+        this.galleryDialogPrintsLoading = true;
+        var params = {
+            n: 100
+        };
+        API.getPrints(params);
+    };
+
+    API.getPrints = function (params) {
+        return this.call(`prints/user/${API.currentUser.id}`, {
+            method: 'GET',
+            params
+        }).then((json) => {
+            var args = {
+                json,
+                params
+            };
+            this.$emit('PRINT:LIST', args);
+            return args;
+        });
+    };
+
+    API.deletePrint = function (printId) {
+        return this.call(`prints/${printId}`, {
+            method: 'DELETE'
+        }).then((json) => {
+            var args = {
+                json,
+                printId
+            };
+            this.$emit('PRINT:DELETE', args);
+            return args;
+        });
+    };
+
+    API.$on('PRINT:LIST', function (args) {
+        $app.printTable = args.json.reverse();
+        $app.galleryDialogPrintsLoading = false;
+    });
+
+    $app.methods.deletePrint = function (printId) {
+        API.deletePrint(printId);
+    };
+
+    API.$on('PRINT:DELETE', function (args) {
+        var array = $app.printTable;
+        var { length } = array;
+        for (var i = 0; i < length; ++i) {
+            if (args.printId === array[i].id) {
+                array.splice(i, 1);
+                break;
+            }
+        }
+    });
+
+    $app.methods.onFileChangePrint = function (e) {
+        var clearFile = function () {
+            if (document.querySelector('#PrintUploadButton')) {
+                document.querySelector('#PrintUploadButton').value = '';
+            }
+        };
+        var files = e.target.files || e.dataTransfer.files;
+        if (!files.length) {
+            return;
+        }
+        if (files[0].size >= 100000000) {
+            // 100MB
+            $app.$message({
+                message: 'File size too large',
+                type: 'error'
+            });
+            clearFile();
+            return;
+        }
+        if (!files[0].type.match(/image.*/)) {
+            $app.$message({
+                message: "File isn't an image",
+                type: 'error'
+            });
+            clearFile();
+            return;
+        }
+        var r = new FileReader();
+        r.onload = function () {
+            var date = new Date();
+            var timestamp = date.toISOString().slice(0, 19);
+            var params = {
+                note: 'test print',
+                worldId: 'wrld_10e5e467-fc65-42ed-8957-f02cace1398c',
+                timestamp
+            };
+            var base64Body = btoa(r.result);
+            API.uploadPrint(base64Body, params).then((args) => {
+                $app.$message({
+                    message: 'Print uploaded',
+                    type: 'success'
+                });
+                return args;
+            });
+        };
+        r.readAsBinaryString(files[0]);
+        clearFile();
+    };
+
+    $app.methods.displayPrintUpload = function () {
+        document.getElementById('PrintUploadButton').click();
+    };
+
+    API.uploadPrint = function (imageData, params) {
+        return this.call('prints', {
+            uploadImagePrint: true,
+            postData: JSON.stringify(params),
+            imageData
+        }).then((json) => {
+            var args = {
+                json,
+                params
+            };
+            this.$emit('PRINT:ADD', args);
+            return args;
+        });
+    };
+
+    API.$on('PRINT:ADD', function (args) {
+        if (Object.keys($app.printTable).length !== 0) {
+            $app.printTable.unshift(args.json);
+        }
+    });
+
+    API.getPrint = function (params) {
+        return this.call(`prints/${params.printId}`, {
+            method: 'GET'
+        }).then((json) => {
+            var args = {
+                json,
+                params
+            };
+            this.$emit('PRINT', args);
+            return args;
+        });
+    };
+
+    API.editPrint = function (params) {
+        return this.call(`prints/${params.printId}`, {
+            method: 'POST',
+            params
+        }).then((json) => {
+            var args = {
+                json,
+                params
+            };
+            this.$emit('PRINT:EDIT', args);
+            return args;
+        });
+    };
+
+    $app.data.saveInstancePrints = await configRepository.getBool(
+        'VRCX_saveInstancePrints',
+        false
+    );
+
+    $app.methods.trySavePrintToFile = async function (printId) {
+        var print = await API.getPrint({ printId });
+        var imageUrl = print.json?.files?.image;
+        if (!imageUrl) {
+            console.error('Print image URL is missing', print);
+            return;
+        }
+        var createdAt = new Date();
+        if (print.json.timestamp) {
+            createdAt = new Date(print.json.timestamp);
+        } else if (print.json.createdAt) {
+            createdAt = new Date(print.json.createdAt);
+        }
+        var authorName = print.json.authorName;
+        // fileDate format: 2024-11-03_16-14-25.757
+        var fileNameDate = createdAt
+            .toISOString()
+            .replace(/:/g, '-')
+            .replace(/T/g, '_')
+            .replace(/Z/g, '');
+        var path = `${createdAt.toISOString().slice(0, 7)}`;
+        var fileName = `${authorName}_${fileNameDate}_${printId}.png`;
+        var status = await AppApi.SavePrintToFile(imageUrl, path, fileName);
+        if (status) {
+            console.log(`Print saved to file: ${path}\\${fileName}`);
+        }
+    };
 
     // #endregion
     // #region | Emoji
@@ -18243,27 +18500,30 @@ speechSynthesis.getVoices();
         return displayName;
     };
 
-    $app.methods.confirmDeleteGameLogUserInstance = function (row) {
-        this.$confirm('Continue? Delete', 'Confirm', {
-            confirmButtonText: 'Confirm',
-            cancelButtonText: 'Cancel',
-            type: 'info',
-            callback: (action) => {
-                if (action === 'confirm') {
-                    database.deleteGameLogInstance({
-                        id: this.previousInstancesUserDialog.userRef.id,
-                        displayName:
-                            this.previousInstancesUserDialog.userRef
-                                .displayName,
-                        location: row.location
-                    });
-                    $app.removeFromArray(
-                        this.previousInstancesUserDialogTable.data,
-                        row
-                    );
+    $app.methods.deleteGameLogUserInstance = function (row) {
+        database.deleteGameLogInstance({
+            id: this.previousInstancesUserDialog.userRef.id,
+            displayName: this.previousInstancesUserDialog.userRef.displayName,
+            location: row.location
+        });
+        $app.removeFromArray(this.previousInstancesUserDialogTable.data, row);
+    };
+
+    $app.methods.deleteGameLogUserInstancePrompt = function (row) {
+        this.$confirm(
+            'Continue? Delete User From GameLog Instance',
+            'Confirm',
+            {
+                confirmButtonText: 'Confirm',
+                cancelButtonText: 'Cancel',
+                type: 'info',
+                callback: (action) => {
+                    if (action === 'confirm') {
+                        this.deleteGameLogUserInstance(row);
+                    }
                 }
             }
-        });
+        );
     };
 
     // #endregion
@@ -18331,20 +18591,21 @@ speechSynthesis.getVoices();
         });
     };
 
-    $app.methods.confirmDeleteGameLogWorldInstance = function (row) {
-        this.$confirm('Continue? Delete', 'Confirm', {
+    $app.methods.deleteGameLogWorldInstance = function (row) {
+        database.deleteGameLogInstanceByInstanceId({
+            location: row.location
+        });
+        $app.removeFromArray(this.previousInstancesWorldDialogTable.data, row);
+    };
+
+    $app.methods.deleteGameLogWorldInstancePrompt = function (row) {
+        this.$confirm('Continue? Delete GameLog Instance', 'Confirm', {
             confirmButtonText: 'Confirm',
             cancelButtonText: 'Cancel',
             type: 'info',
             callback: (action) => {
                 if (action === 'confirm') {
-                    database.deleteGameLogInstanceByInstanceId({
-                        location: row.location
-                    });
-                    $app.removeFromArray(
-                        this.previousInstancesWorldDialogTable.data,
-                        row
-                    );
+                    this.deleteGameLogWorldInstance(row);
                 }
             }
         });
@@ -21716,6 +21977,37 @@ speechSynthesis.getVoices();
     });
 
     // #endregion
+
+    $app.data.worldAllowedDomainsDialog = {
+        visible: false,
+        worldId: '',
+        urlList: []
+    };
+
+    $app.methods.showWorldAllowedDomainsDialog = function () {
+        this.$nextTick(() =>
+            $app.adjustDialogZ(this.$refs.worldAllowedDomainsDialog.$el)
+        );
+        var D = this.worldAllowedDomainsDialog;
+        D.worldId = this.worldDialog.id;
+        D.urlList = this.worldDialog.ref?.urlList ?? [];
+        D.visible = true;
+    };
+
+    $app.methods.saveWorldAllowedDomains = function () {
+        var D = this.worldAllowedDomainsDialog;
+        API.saveWorld({
+            id: D.worldId,
+            urlList: D.urlList
+        }).then((args) => {
+            this.$message({
+                message: 'Allowed Video Player Domains updated',
+                type: 'success'
+            });
+            return args;
+        });
+        D.visible = false;
+    };
 
     $app.data.ossDialog = false;
 

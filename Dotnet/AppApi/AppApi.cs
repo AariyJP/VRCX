@@ -30,7 +30,6 @@ namespace VRCX
 
         private static readonly Logger logger = LogManager.GetCurrentClassLogger();
         private static readonly MD5 _hasher = MD5.Create();
-        private static bool dialogOpen;
 
         static AppApi()
         {
@@ -209,17 +208,17 @@ namespace VRCX
 
         public void SetVR(bool active, bool hmdOverlay, bool wristOverlay, bool menuButton, int overlayHand)
         {
-            VRCXVR.Instance.SetActive(active, hmdOverlay, wristOverlay, menuButton, overlayHand);
+            Program.VRCXVRInstance.SetActive(active, hmdOverlay, wristOverlay, menuButton, overlayHand);
         }
 
         public void RefreshVR()
         {
-            VRCXVR.Instance.Restart();
+            Program.VRCXVRInstance.Restart();
         }
 
         public void RestartVR()
         {
-            VRCXVR.Instance.Restart();
+            Program.VRCXVRInstance.Restart();
         }
 
         public void SetZoom(double zoomLevel)
@@ -356,18 +355,12 @@ namespace VRCX
 
         public void ExecuteVrFeedFunction(string function, string json)
         {
-            if (VRCXVR._wristOverlay == null) return;
-            if (VRCXVR._wristOverlay.IsLoading)
-                VRCXVR.Instance.Restart();
-            VRCXVR._wristOverlay.ExecuteScriptAsync($"$app.{function}", json);
+            Program.VRCXVRInstance.ExecuteVrFeedFunction(function, json);
         }
 
         public void ExecuteVrOverlayFunction(string function, string json)
         {
-            if (VRCXVR._hmdOverlay == null) return;
-            if (VRCXVR._hmdOverlay.IsLoading)
-                VRCXVR.Instance.Restart();
-            VRCXVR._hmdOverlay.ExecuteScriptAsync($"$app.{function}", json);
+            Program.VRCXVRInstance.ExecuteVrOverlayFunction(function, json);
         }
 
         /// <summary>
@@ -574,6 +567,17 @@ namespace VRCX
             }
 
             return null;
+        }
+
+        public async Task<bool> SavePrintToFile(string url, string path, string fileName)
+        {
+            var folder = Path.Combine(GetVRChatPhotosLocation(), "Prints", MakeValidFileName(path));
+            Directory.CreateDirectory(folder);
+            var filePath = Path.Combine(folder, MakeValidFileName(fileName));
+            if (File.Exists(filePath))
+                return false;
+
+            return await ImageCache.SaveImageToFile(url, filePath);
         }
     }
 }
