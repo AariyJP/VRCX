@@ -213,7 +213,10 @@ export default class extends baseClass {
                 buttonUrl = `https://vrchat.com/home/user/${$app.API.currentUser.id}`;
             }
             if (!this.discordDetails) {
-                appId = '378435294170447882'; // Official VRChat App
+                appId =
+                    // '398632010442211348' // Discord VRChat App
+                    '378435294170447882' // Official VRChat App
+                    ;
                 bigIcon =
                     ''
                     // 'vrchat-logo' // Official VRChat
