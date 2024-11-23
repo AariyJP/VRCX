@@ -4673,7 +4673,9 @@ speechSynthesis.getVoices();
             this.updateOnlineFriendCoutner();
         }
         ctx.state = newState;
-        ctx.name = ref.displayName;
+        if (ref?.displayName) {
+            ctx.name = ref.displayName;
+        }
         ctx.isVIP = isVIP;
     };
 
@@ -5524,6 +5526,9 @@ speechSynthesis.getVoices();
                 console.log(
                     `${ref.displayName} GPS ${previousLocation} -> ${newLocation}`
                 );
+            }
+            if (previousLocation === 'offline') {
+                previousLocation = '';
             }
             if (!previousLocation) {
                 // no previous location
@@ -7795,6 +7800,10 @@ speechSynthesis.getVoices();
         'VRCX_notificationTTS',
         'Never'
     );
+    $app.data.notificationTTSNickName = await configRepository.getBool(
+        'VRCX_notificationTTSNickName',
+        false
+    );
     $app.data.notificationTTSVoice = await configRepository.getString(
         'VRCX_notificationTTSVoice',
         '0'
@@ -7979,6 +7988,10 @@ speechSynthesis.getVoices();
         await configRepository.setBool(
             'VRCX_afkDesktopToast',
             this.afkDesktopToast
+        );
+        await configRepository.setBool(
+            'VRCX_notificationTTSNickName',
+            this.notificationTTSNickName
         );
         await configRepository.setBool('VRCX_minimalFeed', this.minimalFeed);
         await configRepository.setBool(
@@ -8939,8 +8952,9 @@ speechSynthesis.getVoices();
         ) {
             var url = new URL(input);
             var urlPath = url.pathname;
-            if (urlPath.substring(5, 12) === '/world/') {
-                var worldId = urlPath.substring(12);
+            var urlPathSplit = urlPath.split('/');
+            if (urlPathSplit.length >= 4 && urlPathSplit[2] === 'world') {
+                var worldId = urlPathSplit[3];
                 this.showWorldDialog(worldId);
                 return true;
             } else if (urlPath.substring(5, 12) === '/launch') {
@@ -9008,16 +9022,21 @@ speechSynthesis.getVoices();
         if (input.startsWith('https://vrchat.')) {
             var url = new URL(input);
             var urlPath = url.pathname;
-            if (urlPath.substring(5, 11) === '/user/') {
-                var userId = urlPath.substring(11);
+            var urlPathSplit = urlPath.split('/');
+            if (urlPathSplit.length < 4) {
+                return false;
+            }
+            var type = urlPathSplit[2];
+            if (type === 'user') {
+                var userId = urlPathSplit[3];
                 this.showUserDialog(userId);
                 return true;
-            } else if (urlPath.substring(5, 13) === '/avatar/') {
-                var avatarId = urlPath.substring(13);
+            } else if (type === 'avatar') {
+                var avatarId = urlPathSplit[3];
                 this.showAvatarDialog(avatarId);
                 return true;
-            } else if (urlPath.substring(5, 12) === '/group/') {
-                var groupId = urlPath.substring(12);
+            } else if (type === 'group') {
+                var groupId = urlPathSplit[3];
                 this.showGroupDialog(groupId);
                 return true;
             }
@@ -13653,6 +13672,7 @@ speechSynthesis.getVoices();
         };
         return this.call('file/image', {
             uploadImage: true,
+            matchingDimensions: true,
             postData: JSON.stringify(params),
             imageData
         }).then((json) => {
@@ -16719,7 +16739,8 @@ speechSynthesis.getVoices();
     };
 
     $app.methods.sweepVRChatCache = async function () {
-        await AssetBundleCacher.SweepCache();
+        var output = await AssetBundleCacher.SweepCache();
+        console.log('SweepCache', output);
         if (this.VRChatConfigDialog.visible) {
             this.getVRChatCacheSize();
         }
@@ -17336,6 +17357,7 @@ speechSynthesis.getVoices();
         };
         return this.call('file/image', {
             uploadImage: true,
+            matchingDimensions: false,
             postData: JSON.stringify(params),
             imageData
         }).then((json) => {
@@ -17447,6 +17469,7 @@ speechSynthesis.getVoices();
     API.uploadSticker = function (imageData, params) {
         return this.call('file/image', {
             uploadImage: true,
+            matchingDimensions: true,
             postData: JSON.stringify(params),
             imageData
         }).then((json) => {
@@ -17507,7 +17530,7 @@ speechSynthesis.getVoices();
     };
 
     API.$on('PRINT:LIST', function (args) {
-        $app.printTable = args.json.reverse();
+        $app.printTable = args.json;
         $app.galleryDialogPrintsLoading = false;
     });
 
@@ -17525,6 +17548,8 @@ speechSynthesis.getVoices();
             }
         }
     });
+
+    $app.data.printUploadNote = '';
 
     $app.methods.onFileChangePrint = function (e) {
         var clearFile = function () {
@@ -17556,10 +17581,12 @@ speechSynthesis.getVoices();
         var r = new FileReader();
         r.onload = function () {
             var date = new Date();
+            // why the fuck isn't this UTC
+            date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
             var timestamp = date.toISOString().slice(0, 19);
             var params = {
-                note: 'test print',
-                worldId: 'wrld_10e5e467-fc65-42ed-8957-f02cace1398c',
+                note: $app.printUploadNote,
+                // worldId: '',
                 timestamp
             };
             var base64Body = btoa(r.result);
@@ -17632,28 +17659,39 @@ speechSynthesis.getVoices();
         false
     );
 
-    $app.methods.trySavePrintToFile = async function (printId) {
-        var print = await API.getPrint({ printId });
-        var imageUrl = print.json?.files?.image;
-        if (!imageUrl) {
-            console.error('Print image URL is missing', print);
-            return;
-        }
+    $app.methods.getPrintDate = function (print) {
         var createdAt = new Date();
-        if (print.json.timestamp) {
-            createdAt = new Date(print.json.timestamp);
-        } else if (print.json.createdAt) {
-            createdAt = new Date(print.json.createdAt);
+        if (print.createdAt) {
+            createdAt = new Date(print.createdAt);
+        } else if (print.timestamp) {
+            createdAt = new Date(print.timestamp);
         }
-        var authorName = print.json.authorName;
+        return createdAt;
+    };
+
+    $app.methods.getPrintFileName = function (print) {
+        var authorName = print.authorName;
         // fileDate format: 2024-11-03_16-14-25.757
+        var createdAt = this.getPrintDate(print);
         var fileNameDate = createdAt
             .toISOString()
             .replace(/:/g, '-')
             .replace(/T/g, '_')
             .replace(/Z/g, '');
+        var fileName = `${authorName}_${fileNameDate}_${print.id}.png`;
+        return fileName;
+    };
+
+    $app.methods.trySavePrintToFile = async function (printId) {
+        var args = await API.getPrint({ printId });
+        var imageUrl = args.json?.files?.image;
+        if (!imageUrl) {
+            console.error('Print image URL is missing', args);
+            return;
+        }
+        var createdAt = this.getPrintDate(args.json);
         var path = `${createdAt.toISOString().slice(0, 7)}`;
-        var fileName = `${authorName}_${fileNameDate}_${printId}.png`;
+        var fileName = this.getPrintFileName(args.json);
         var status = await AppApi.SavePrintToFile(imageUrl, path, fileName);
         if (status) {
             console.log(`Print saved to file: ${path}\\${fileName}`);
@@ -17728,6 +17766,8 @@ speechSynthesis.getVoices();
             clearFile();
             return;
         }
+        // set Emoji settings from fileName
+        this.parseEmojiFileName(files[0].name);
         var r = new FileReader();
         r.onload = function () {
             var params = {
@@ -17762,6 +17802,7 @@ speechSynthesis.getVoices();
     API.uploadEmoji = function (imageData, params) {
         return this.call('file/image', {
             uploadImage: true,
+            matchingDimensions: true,
             postData: JSON.stringify(params),
             imageData
         }).then((json) => {
@@ -17839,6 +17880,42 @@ speechSynthesis.getVoices();
             animation: ${animationDurationMs}ms steps(1) 0s infinite ${animStyle} running animated-emoji-${frameCount};
         `;
         return style;
+    };
+
+    $app.methods.getEmojiFileName = function (emoji) {
+        if (emoji.frames) {
+            var loopStyle = emoji.loopStyle || 'linear';
+            return `${emoji.name}_${emoji.animationStyle}animationStyle_${emoji.frames}frames_${emoji.framesOverTime}fps_${loopStyle}loopStyle.png`;
+        } else {
+            return `${emoji.name}_${emoji.animationStyle}animationStyle.png`;
+        }
+    };
+
+    $app.methods.parseEmojiFileName = function (fileName) {
+        // remove file extension
+        fileName = fileName.replace(/\.[^/.]+$/, '');
+        var array = fileName.split('_');
+        for (var i = 0; i < array.length; ++i) {
+            var value = array[i];
+            if (value.endsWith('animationStyle')) {
+                this.emojiAnimType = false;
+                this.emojiAnimationStyle = value
+                    .replace('animationStyle', '')
+                    .toLowerCase();
+            }
+            if (value.endsWith('frames')) {
+                this.emojiAnimType = true;
+                this.emojiAnimFrameCount = parseInt(
+                    value.replace('frames', '')
+                );
+            }
+            if (value.endsWith('fps')) {
+                this.emojiAnimFps = parseInt(value.replace('fps', ''));
+            }
+            if (value.endsWith('loopStyle')) {
+                this.emojiAnimLoopPingPong = value === 'pingpong';
+            }
+        }
     };
 
     // #endregion
@@ -21290,7 +21367,7 @@ speechSynthesis.getVoices();
         }
     };
 
-    $app.methods.downloadAndSaveImage = async function (url) {
+    $app.methods.downloadAndSaveImage = async function (url, fileName) {
         if (!url) {
             return;
         }
@@ -21311,7 +21388,10 @@ speechSynthesis.getVoices();
             }
             var link = document.createElement('a');
             link.href = response.data;
-            var fileName = `${$utils.extractFileId(url)}.png`;
+            var fileId = $utils.extractFileId(url);
+            if (!fileName && fileId) {
+                fileName = `${fileId}.png`;
+            }
             if (!fileName) {
                 fileName = `${url.split('/').pop()}.png`;
             }
@@ -21691,10 +21771,11 @@ speechSynthesis.getVoices();
 
     $app.data.fullscreenImageDialog = {
         visible: false,
-        imageUrl: ''
+        imageUrl: '',
+        fileName: ''
     };
 
-    $app.methods.showFullscreenImageDialog = function (imageUrl) {
+    $app.methods.showFullscreenImageDialog = function (imageUrl, fileName) {
         if (!imageUrl) {
             return;
         }
@@ -21703,6 +21784,7 @@ speechSynthesis.getVoices();
         );
         var D = this.fullscreenImageDialog;
         D.imageUrl = imageUrl;
+        D.fileName = fileName;
         D.visible = true;
     };
 
